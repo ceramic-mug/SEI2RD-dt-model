@@ -1,0 +1,3 @@
+bus_riders.csv refers to "Average Weekday Bus Ridership" from http://web.mta.info/nyct/facts/ridership/ridership_bus.htm
+
+subway_station_commute_2015 is the average weekday subway ridership for 2015 per subway station: http://web.mta.info/nyct/facts/ridership/ridership_sub.htm 

@@ -1,3 +1,9 @@
 bus_riders.csv refers to "Average Weekday Bus Ridership" from http://web.mta.info/nyct/facts/ridership/ridership_bus.htm
 
 subway_riders.csv is the average weekday subway ridership for 2015 per subway station: http://web.mta.info/nyct/facts/ridership/ridership_sub.htm 
+
+borough_subways.csv is a GIS-computed list of which subway lines run in each borough
+
+pertinent_commute.csv is a list of the commuting fluxes to and from each boroughh and to the outside world
+
+nta_subway_stops.csv is a list of which all the subway stops by NTA they are in

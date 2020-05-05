@@ -51,6 +51,9 @@ nta_distances_to_subway = pd.read_csv('/Users/joshua/Documents/School/Princeton/
 # sort by NTA index
 nta_distances_to_subway = nta_distances_to_subway.sort_values(by=['nta_code'])
 
+# import subways per Borough
+borough_subways = pd.read_csv('/Users/joshua/Documents/School/Princeton/Sophomore Classes/Spring 2020/CEE302/term_project/SEI2RD-dt-model/dat/borough_subways.csv')
+
 # get a list of NTAs for iteration
 ntas = [i for i in nta_distances_to_subway['nta_code'].values.tolist()]
 
@@ -117,17 +120,38 @@ def partition(_dist_,_borough_,_pop_):
     h_ = _pop_ - (s+c+i)
     return [s_,c_,i_,h_]
 
-partition(nta_distances_to_subway.iloc[0]['distance(m)'],nta_populations.iloc[0]['Borough'],nta_populations.iloc[0]['Population'])
-
-sum(partition(nta_distances_to_subway.iloc[0]['distance(m)'],nta_populations.iloc[0]['Borough'],nta_populations.iloc[0]['Population']))
-
-nta_populations.iloc[0]['Population']
-
-nta_populations.head()
-
-nta_distances_to_subway.head()
-nta_populations.head()
 #### PARAM 2: Computing effective population coefficients for subway lines, NTAs, and Boroughs
+
+# find the proportion of each metro, car box goes to the borough in question (first nesting) from each other borough (second nesting)
+borough_propto = {}
+for _borough_ in boroughs:
+    borough_propto[_borough_] = {}
+    _other_boroughs_ = [i for i in boroughs if i!=_borough_]
+    for b in _other_boroughs_:
+        borough_propto[_borough_][b] = commuting_flows_by_borough.loc[((commuting_flows_by_borough['from']==b)&(commuting_flows_by_borough['to']==_borough_))]['proportion'].values[0]/inter_borough_commuter_proportions[b]
+
+# compute the effective borough I/N at each timestep
+def effective_borough(_borough_,_nta_dict_,_model_,_timestep_):
+    # which NTAs send people into this borough
+    _outer_ntas_ = nta_populations.loc[nta_populations['Borough']!=_borough_].values
+    _n_ = 0
+    _i_ = 0
+
+    # add from people commuting in from the outside
+    for _nta_ in _outer_ntas_:
+        _n_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(sum([_model_[_timestep_,_nta_dict_[_nta_],:2,:-1]))
+        _i_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(sum([_model_[_timestep_,_nta_dict_[_nta_],:2,2:4]))
+    _inner_ntas_ = nta_populations.loc[nta_populations['Borough']==_borough_].values
+
+    # add from people commuting internally
+    for _nta in _inner_ntas_:
+        _n_ += sum([_model_[_timestep_,_nta_dict_[_nta_],2,:-1])
+        _n_ += sum([_model_[_timestep_,_nta_dict_[_nta_],2,2:4])
+    return _i_/_n_
+
+# compute the effective NTA I/N at each timestep
+def effective_nta(_nta_,_nta_dict_,_model_,_timestep_):
+    return sum(sum([_model_[_timestep_,_nta_dict_[_nta_],:,2:4]))/sum(sum([_model_[_timestep_,_nta_dict_[_nta_],:,:-1]))
 
 # compute the number of distinct subway lines (colors) an NTA subway rider population rides
 def nta_colors(_nta_code_):
@@ -136,26 +160,24 @@ def nta_colors(_nta_code_):
     _n_ = len(_unique_)
     return (_n_, _unique_)
 
+# compute the effective train line I/N at each timestep
+def effective_train(_train_color_,_model_,_timestep_):
+    _n_ = 0
+    _i_ = 0
 
-borough_propto = {}
-# find the proportion of each metro, car box goes to the borough in question from each other borough
-for _borough_ in boroughs:
-    borough_propto[_borough_] = {}
-    _other_boroughs_ = [i for i in boroughs if i!=_borough_]
-    for b in _other_boroughs_:
-        _borough_propto_[_borough_][b] = commuting_flows_by_borough.iloc[((commuting_flows_by_borough['from']=b)&(commuting_flows_by_borough['to']==_borough_)]['proportion']/inter_borough_commuter_proportions[b]
+    for _nta_ in ntas:
+        a = nta_colors(_nta_)
 
-# compute the effective borough I/N at each timestep
-def effective_borough(_borough_,_nta_dict_,_model_,_timestep_):
-    _ntas_ = nta_populations[nta_populations['Borough']==_borough_]['NTA Code'].values[0].tolist()
+        # if the nta's subway population rides this subways
+        if _color_ in a[1]:
+            _n_ += sum(_model_[_timestep_,_nta_dict_[_nta_],0,:-1])/a[0]
+            _i_ += sum(_model_[_timestep_,_nta_dict_[_nta_],0,2:4])/a[0]
 
-    # find the proportion of each metro, car box goes to the borough in question from each other borough
-    _other_boroughs_ = [i for i in boroughs if i!=_borough_]
-    _borough_propto_ = {}
-    for b in _other_boroughs_:
-        _borough_propto_[b] = commuting_flows_by_borough.iloc[((commuting_flows_by_borough['from']=b)&(commuting_flows_by_borough['to']==_borough_)]['proportion']/inter_borough_commuter_proportions[b]
+        # otherwise, use the commuter influxes
+        else:
+            for _borough_ in borough_subways[borough_subways['color']==_color_].values:
+                if _nta_ not in nta_populations[nta_populations['Borough']==_borough_].values:
+                    _n_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(_model_[_timestep_,_nta_dict_[_nta_],0,:-1])/len(borough_subways[borough_subways['borough']==_borough_].values)
+                    _i_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(_model_[_timestep_,_nta_dict_[_nta_],0,2:4])/len(borough_subways[borough_subways['borough']==_borough_].values)
 
-
-
-commuting_flows_by_borough
-inter_borough_commuter_proportions
+    return _i_/_n_

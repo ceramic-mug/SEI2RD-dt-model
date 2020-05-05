@@ -61,8 +61,8 @@ nta_distances_to_subway = nta_distances_to_subway.sort_values(by=['nta_code'])
 # import subways per Borough
 borough_subways = pd.read_csv('/Users/joshua/Documents/School/Princeton/Sophomore Classes/Spring 2020/CEE302/term_project/SEI2RD-dt-model/dat/borough_subways.csv')
 subways = np.unique(borough_subways['color'].values)
-# get a list of NTAs for iteration
-ntas = [i for i in nta_distances_to_subway['nta_code'].values.tolist()]
+# get a list of non-zero population NTAs for iteration
+ntas = [i for i in nta_distances_to_subway['nta_code'].values.tolist() if nta_populations[nta_populations['NTA Code']==i]['Population'].values[0] != 0]
 
 ##### END IMPORT DATA #####
 
@@ -121,10 +121,10 @@ def in_commute_prop_population(_dist_,_borough_):
 # The populations for each of these boxes will be computed for each NTA by the following function:
 
 def partition(_dist_,_borough_,_pop_):
-    s_ = subway_prop_population(_dist_,_borough_)*_pop_
-    c_ = car_prop_population(_dist_,_borough_)*_pop_
-    i_ = in_commute_prop_population(_dist_,_borough_)*_pop_
-    h_ = _pop_ - (s+c+i)
+    s_ = int(subway_prop_population(_dist_,_borough_)*_pop_)
+    c_ = int(car_prop_population(_dist_,_borough_)*_pop_)
+    i_ = int(in_commute_prop_population(_dist_,_borough_)*_pop_)
+    h_ = int(_pop_ - (s_+c_+i_))
     return [s_,c_,i_,h_]
 
 #### PARAM 2: Computing effective population coefficients for subway lines, NTAs, and Boroughs
@@ -137,28 +137,34 @@ for _borough_ in boroughs:
     for b in _other_boroughs_:
         borough_propto[_borough_][b] = commuting_flows_by_borough.loc[((commuting_flows_by_borough['from']==b)&(commuting_flows_by_borough['to']==_borough_))]['proportion'].values[0]/inter_borough_commuter_proportions[b]
 
+
 # compute the effective borough I/N at each timestep
 def effective_borough(_borough_,_nta_dict_,_model_,_timestep_):
     # which NTAs send people into this borough
-    _outer_ntas_ = nta_populations.loc[nta_populations['Borough']!=_borough_].values
+    _outer_ntas_ = [i for i in nta_populations.loc[nta_populations['Borough']!=_borough_]['NTA Code'].values if i in ntas]
     _n_ = 0
     _i_ = 0
 
     # add from people commuting in from the outside
     for _nta_ in _outer_ntas_:
-        _n_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(sum([_model_[_timestep_,_nta_dict_[_nta_],:2,:-1]))
-        _i_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(sum([_model_[_timestep_,_nta_dict_[_nta_],:2,2:4]))
-    _inner_ntas_ = nta_populations.loc[nta_populations['Borough']==_borough_].values
+        if sum(sum(_model_[_timestep_,_nta_dict_[_nta_],:2,:-1])) != np.nan and sum(sum(_model_[_timestep_,_nta_dict_[_nta_],:2,:-1])) != 0:
+            _n_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(sum(_model_[_timestep_,_nta_dict_[_nta_],:2,:-1]))
+            _i_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(sum(_model_[_timestep_,_nta_dict_[_nta_],:2,2:4]))
+
+    _inner_ntas_ = [i for i in nta_populations.loc[nta_populations['Borough']==_borough_]['NTA Code'].values if i in ntas]
 
     # add from people commuting internally
     for _nta in _inner_ntas_:
-        _n_ += sum([_model_[_timestep_,_nta_dict_[_nta_],2,:-1])
-        _n_ += sum([_model_[_timestep_,_nta_dict_[_nta_],2,2:4])
+        if sum(_model_[_timestep_,_nta_dict_[_nta],2,:-1]) != np.nan and sum(_model_[_timestep_,_nta_dict_[_nta],2,:-1]) != 0:
+            _n_ += sum(_model_[_timestep_,_nta_dict_[_nta],2,:-1])
+            _i_ += sum(_model_[_timestep_,_nta_dict_[_nta],2,2:4])
     return _i_/_n_
 
 # compute the effective NTA I/N at each timestep
 def effective_nta(_nta_,_nta_dict_,_model_,_timestep_):
-    return sum(sum([_model_[_timestep_,_nta_dict_[_nta_],:,2:4]))/sum(sum([_model_[_timestep_,_nta_dict_[_nta_],:,:-1]))
+    _i_ = sum(sum(_model_[_timestep_,_nta_dict_[_nta_],:,2:4]))
+    _n_ = sum(sum(_model_[_timestep_,_nta_dict_[_nta_],:,:-1]))
+    return _i_/_n_
 
 # compute the number of distinct subway lines (colors) an NTA subway rider population rides
 def nta_colors(_nta_code_):
@@ -168,7 +174,7 @@ def nta_colors(_nta_code_):
     return (_n_, _unique_)
 
 # compute the effective train line I/N at each timestep
-def effective_train(_train_color_,_model_,_timestep_):
+def effective_train(_train_color_,_nta_dict_,_model_,_timestep_):
     _n_ = 0
     _i_ = 0
 
@@ -176,14 +182,14 @@ def effective_train(_train_color_,_model_,_timestep_):
         a = nta_colors(_nta_)
 
         # if the nta's subway population rides this subways
-        if _color_ in a[1]:
+        if _train_color_ in a[1]:
             _n_ += sum(_model_[_timestep_,_nta_dict_[_nta_],0,:-1])/a[0]
             _i_ += sum(_model_[_timestep_,_nta_dict_[_nta_],0,2:4])/a[0]
 
         # otherwise, use the commuter influxes
         else:
-            for _borough_ in borough_subways[borough_subways['color']==_color_].values:
-                if _nta_ not in nta_populations[nta_populations['Borough']==_borough_].values:
+            for _borough_ in borough_subways[borough_subways['color']==_train_color_]['borough'].values:
+                if _nta_ not in nta_populations[nta_populations['Borough']==_borough_]['NTA Code'].values:
                     _n_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(_model_[_timestep_,_nta_dict_[_nta_],0,:-1])/len(borough_subways[borough_subways['borough']==_borough_].values)
                     _i_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(_model_[_timestep_,_nta_dict_[_nta_],0,2:4])/len(borough_subways[borough_subways['borough']==_borough_].values)
 
@@ -210,7 +216,7 @@ def commuter_term(_nta_,_effective_dict_):
     term = 0
     home_borough = nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]
     for _borough_ in borough_propto[home_borough].keys():
-        term += borough_propto[home_borough][_borough_] * beta_borough * _effective_dict_['borough']
+        term += borough_propto[home_borough][_borough_] * beta_borough * _effective_dict_['borough'][_borough_]
 
     return term
 
@@ -234,43 +240,43 @@ def matrices(_effective_dict_,_nta_):
     home_matrix = np.array([[-(home_term(_nta_,_effective_dict_)),0,0,0,0,0],
                             [home_term(_nta_,_effective_dict_),-mean_latent_period**(-1),0,0,0,0],
                             [0,(1-proportion_symptomatic)*mean_latent_period**(-1),-mean_infectious_period**(-1),0,0,0],
-                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)(proportion_severe_cases+1),0,0],
+                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)*(proportion_severe_cases+1),0,0],
                             [0,0,mean_infectious_period**(-1),mean_infectious_period**(-1),0,0],
                             [0,0,0,mean_infectious_period**(-1)*proportion_severe_cases,0,0]])
 
     subway_matrix = np.array([[-(home_term(_nta_,_effective_dict_)+commuter_term(_nta_,_effective_dict_)+metro_term(_nta_,_effective_dict_)),0,0,0,0,0],
                             [home_term(_nta_,_effective_dict_)+commuter_term(_nta_,_effective_dict_)+metro_term(_nta_,_effective_dict_),-mean_latent_period**(-1),0,0,0,0],
                             [0,(1-proportion_symptomatic)*mean_latent_period**(-1),-mean_infectious_period**(-1),0,0,0],
-                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)(proportion_severe_cases+1),0,0],
+                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)*(proportion_severe_cases+1),0,0],
                             [0,0,mean_infectious_period**(-1),mean_infectious_period**(-1),0,0],
                             [0,0,0,mean_infectious_period**(-1)*proportion_severe_cases,0,0]])
 
     car_matrix = np.array([[-(home_term(_nta_,_effective_dict_)+commuter_term(_nta_,_effective_dict_)),0,0,0,0,0],
                             [home_term(_nta_,_effective_dict_)+commuter_term(_nta_,_effective_dict_),-mean_latent_period**(-1),0,0,0,0],
                             [0,(1-proportion_symptomatic)*mean_latent_period**(-1),-mean_infectious_period**(-1),0,0,0],
-                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)(proportion_severe_cases+1),0,0],
+                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)*(proportion_severe_cases+1),0,0],
                             [0,0,mean_infectious_period**(-1),mean_infectious_period**(-1),0,0],
                             [0,0,0,mean_infectious_period**(-1)*proportion_severe_cases,0,0]])
 
     inborough_matrix = np.array([[-(home_term(_nta_,_effective_dict_)+inborough_term(_nta_,_effective_dict_)),0,0,0,0,0],
                             [home_term(_nta_,_effective_dict_)+inborough_term(_nta_,_effective_dict_),-mean_latent_period**(-1),0,0,0,0],
                             [0,(1-proportion_symptomatic)*mean_latent_period**(-1),-mean_infectious_period**(-1),0,0,0],
-                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)(proportion_severe_cases+1),0,0],
+                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)*(proportion_severe_cases+1),0,0],
                             [0,0,mean_infectious_period**(-1),mean_infectious_period**(-1),0,0],
                             [0,0,0,mean_infectious_period**(-1)*proportion_severe_cases,0,0]])
-subways
+
     return (subway_matrix,car_matrix,inborough_matrix,home_matrix)
 
 # compute the effectvie I/N coefficients for each thing in each category
 def compute_effectives(_nta_dict_,_model_,_timestep_):
-    effective_dict = {'borough':{},'nta':{},'metro'{}}
+    effective_dict = {'borough':{},'nta':{},'metro':{}}
 
     for _borough_ in boroughs:
         effective_dict['borough'][_borough_] = effective_borough(_borough_,_nta_dict_,_model_,_timestep_)
     for _nta_ in ntas:
         effective_dict['nta'][_nta_] = effective_nta(_nta_,_nta_dict_,_model_,_timestep_)
     for _line_ in subways:
-        effective_dict['metro'][_line_] = effective_dict(_line_,_model_,_timestep_)
+        effective_dict['metro'][_line_] = effective_train(_line_,_nta_dict_,_model_,_timestep_)
 
     return effective_dict
 
@@ -281,26 +287,33 @@ def main(time):
     nta_dict = {}
     for i in range(len(ntas)):
         nta_dict[ntas[i]] = i
-        model[0,i,:,0] = partition(nta_distances_to_subway[nta_distances_to_subway['nta_code']==ntas[i]]['distance(m)'].values[0],nta_populations[nta_populations['NTA Code']==ntas[i]]['Borough'].values[0],nta_populations[nta_populations['NTA Code']==ntas[i]]['Population'].values[0])
+        vals = partition(nta_distances_to_subway[nta_distances_to_subway['nta_code']==ntas[i]]['distance(m)'].values[0],nta_populations[nta_populations['NTA Code']==ntas[i]]['Borough'].values[0],nta_populations[nta_populations['NTA Code']==ntas[i]]['Population'].values[0])
+        for j in range(len(vals)):
+            model[0,i,j,0] = vals[j]
 
     # which NTA starts with an infected person?
     starter_nta = random.randint(0,len(ntas))
     model[0,starter_nta,0,0] -= 1
-    model[0,starter_nta,0,4] += 1
+    model[0,starter_nta,0,3] += 1
+    print('The starter NTA is '+ntas[starter_nta])
 
-    f = open("/Users/joshua/Documents/School/Princeton/Sophomore Classes/Spring 2020/CEE302/term_project/SEI2RD-dt-model/out/"+date.today()+'.csv',"w+")
+    f = open("/Users/joshua/Documents/School/Princeton/Sophomore Classes/Spring 2020/CEE302/term_project/SEI2RD-dt-model/out/"+str(date.today())+'.csv',"w+")
     f.write(','.join(['step','nta','cat','s','e','is','ia','r','d']))
     for nta in ntas:
         for i in range(len(categories)):
-            f.write('\n'+','.join([str(0),nta,categories[i],','.join(model[0,nta_dict[nta],i,:])]))
+            f.write('\n'+','.join([str(0),nta,categories[i],','.join([str(i) for i in model[0,nta_dict[nta],i,:]])]))
 
     for step in range(time-1):
         effectives = compute_effectives(nta_dict,model,step)
         for nta in ntas:
             m = matrices(effectives,nta)
             for i in range(len(categories)):
-                model[step+1,nta_dict[nta],i,:] = m[i].dot(model[step,nta_dict[nta],i,:].transpose()).transpose()
-                f.write('\n'+','.join([str(step+1),nta,categories[i],','.join(model[step+1,nta_dict[nta],i,:])]))
+                print(','.join([str(step),nta,categories[i],','.join([str(int(round(i))) for i in model[step,nta_dict[nta],i,:]])]))
+
+                # compute
+                model[step+1,nta_dict[nta],i,:] = [j for j in model[step,nta_dict[nta],i,:] + m[i].dot(model[step,nta_dict[nta],i,:])]
+
+                f.write('\n'+','.join([str(step+1),nta,categories[i],','.join([str(i) for i in model[step+1,nta_dict[nta],i,:]])]))
 
     f.close()
 

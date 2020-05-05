@@ -1,14 +1,21 @@
 import numpy as np
 import pandas as pd
 import re
-# import fiona
-# from shapely.geometry import shape,mapping, Point, Polygon, MultiPolygon
+import random
+from datetime import date
 
 ##### Useful regular expressions
 
 color_getter = re.compile('#.*')
 
 ###### Reference lists and dictionaries ######
+
+categories = [
+'m',
+'c',
+'i',
+'h'
+]
 
 boroughs = [
 'Bronx',
@@ -53,7 +60,7 @@ nta_distances_to_subway = nta_distances_to_subway.sort_values(by=['nta_code'])
 
 # import subways per Borough
 borough_subways = pd.read_csv('/Users/joshua/Documents/School/Princeton/Sophomore Classes/Spring 2020/CEE302/term_project/SEI2RD-dt-model/dat/borough_subways.csv')
-
+subways = np.unique(borough_subways['color'].values)
 # get a list of NTAs for iteration
 ntas = [i for i in nta_distances_to_subway['nta_code'].values.tolist()]
 
@@ -181,3 +188,120 @@ def effective_train(_train_color_,_model_,_timestep_):
                     _i_ += borough_propto[_borough_][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]*sum(_model_[_timestep_,_nta_dict_[_nta_],0,2:4])/len(borough_subways[borough_subways['borough']==_borough_].values)
 
     return _i_/_n_
+
+######################## END PARAMS
+
+##### MATRICES #######
+
+beta_metro = 0.5944
+beta_borough = 0.5944
+beta_nta = 0.5944
+mean_latent_period = 3
+proportion_symptomatic = 0.5
+mean_infectious_period = 5
+proportion_severe_cases = 0.05
+
+nta_populations.head()
+borough_subways.head()
+
+
+def commuter_term(_nta_,_effective_dict_):
+
+    term = 0
+    home_borough = nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]
+    for _borough_ in borough_propto[home_borough].keys():
+        term += borough_propto[home_borough][_borough_] * beta_borough * _effective_dict_['borough']
+
+    return term
+
+def metro_term(_nta_,_effective_dict_):
+
+    term = 0
+    home_borough = nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]
+    # add all the various possible interactions with various subways by weight of travel
+    for _borough_ in borough_propto[home_borough].keys():
+        term += beta_metro * borough_propto[home_borough][_borough_] * np.average(np.array([_effective_dict_['metro'][i] for i in borough_subways[borough_subways['borough']==_borough_]['color'].values]))
+    return term
+
+def home_term(_nta_,_effective_dict_):
+    return beta_nta*_effective_dict_['nta'][_nta_]
+
+def inborough_term(_nta_,_effective_dict_):
+    return beta_borough*_effective_dict_['borough'][nta_populations[nta_populations['NTA Code']==_nta_]['Borough'].values[0]]
+
+def matrices(_effective_dict_,_nta_):
+
+    home_matrix = np.array([[-(home_term(_nta_,_effective_dict_)),0,0,0,0,0],
+                            [home_term(_nta_,_effective_dict_),-mean_latent_period**(-1),0,0,0,0],
+                            [0,(1-proportion_symptomatic)*mean_latent_period**(-1),-mean_infectious_period**(-1),0,0,0],
+                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)(proportion_severe_cases+1),0,0],
+                            [0,0,mean_infectious_period**(-1),mean_infectious_period**(-1),0,0],
+                            [0,0,0,mean_infectious_period**(-1)*proportion_severe_cases,0,0]])
+
+    subway_matrix = np.array([[-(home_term(_nta_,_effective_dict_)+commuter_term(_nta_,_effective_dict_)+metro_term(_nta_,_effective_dict_)),0,0,0,0,0],
+                            [home_term(_nta_,_effective_dict_)+commuter_term(_nta_,_effective_dict_)+metro_term(_nta_,_effective_dict_),-mean_latent_period**(-1),0,0,0,0],
+                            [0,(1-proportion_symptomatic)*mean_latent_period**(-1),-mean_infectious_period**(-1),0,0,0],
+                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)(proportion_severe_cases+1),0,0],
+                            [0,0,mean_infectious_period**(-1),mean_infectious_period**(-1),0,0],
+                            [0,0,0,mean_infectious_period**(-1)*proportion_severe_cases,0,0]])
+
+    car_matrix = np.array([[-(home_term(_nta_,_effective_dict_)+commuter_term(_nta_,_effective_dict_)),0,0,0,0,0],
+                            [home_term(_nta_,_effective_dict_)+commuter_term(_nta_,_effective_dict_),-mean_latent_period**(-1),0,0,0,0],
+                            [0,(1-proportion_symptomatic)*mean_latent_period**(-1),-mean_infectious_period**(-1),0,0,0],
+                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)(proportion_severe_cases+1),0,0],
+                            [0,0,mean_infectious_period**(-1),mean_infectious_period**(-1),0,0],
+                            [0,0,0,mean_infectious_period**(-1)*proportion_severe_cases,0,0]])
+
+    inborough_matrix = np.array([[-(home_term(_nta_,_effective_dict_)+inborough_term(_nta_,_effective_dict_)),0,0,0,0,0],
+                            [home_term(_nta_,_effective_dict_)+inborough_term(_nta_,_effective_dict_),-mean_latent_period**(-1),0,0,0,0],
+                            [0,(1-proportion_symptomatic)*mean_latent_period**(-1),-mean_infectious_period**(-1),0,0,0],
+                            [0,proportion_symptomatic*mean_latent_period**(-1),0,-mean_infectious_period**(-1)(proportion_severe_cases+1),0,0],
+                            [0,0,mean_infectious_period**(-1),mean_infectious_period**(-1),0,0],
+                            [0,0,0,mean_infectious_period**(-1)*proportion_severe_cases,0,0]])
+subways
+    return (subway_matrix,car_matrix,inborough_matrix,home_matrix)
+
+# compute the effectvie I/N coefficients for each thing in each category
+def compute_effectives(_nta_dict_,_model_,_timestep_):
+    effective_dict = {'borough':{},'nta':{},'metro'{}}
+
+    for _borough_ in boroughs:
+        effective_dict['borough'][_borough_] = effective_borough(_borough_,_nta_dict_,_model_,_timestep_)
+    for _nta_ in ntas:
+        effective_dict['nta'][_nta_] = effective_nta(_nta_,_nta_dict_,_model_,_timestep_)
+    for _line_ in subways:
+        effective_dict['metro'][_line_] = effective_dict(_line_,_model_,_timestep_)
+
+    return effective_dict
+
+def main(time):
+
+    model = np.zeros([time,len(ntas),4,6])
+
+    nta_dict = {}
+    for i in range(len(ntas)):
+        nta_dict[ntas[i]] = i
+        model[0,i,:,0] = partition(nta_distances_to_subway[nta_distances_to_subway['nta_code']==ntas[i]]['distance(m)'].values[0],nta_populations[nta_populations['NTA Code']==ntas[i]]['Borough'].values[0],nta_populations[nta_populations['NTA Code']==ntas[i]]['Population'].values[0])
+
+    # which NTA starts with an infected person?
+    starter_nta = random.randint(0,len(ntas))
+    model[0,starter_nta,0,0] -= 1
+    model[0,starter_nta,0,4] += 1
+
+    f = open("/Users/joshua/Documents/School/Princeton/Sophomore Classes/Spring 2020/CEE302/term_project/SEI2RD-dt-model/out/"+date.today()+'.csv',"w+")
+    f.write(','.join(['step','nta','cat','s','e','is','ia','r','d']))
+    for nta in ntas:
+        for i in range(len(categories)):
+            f.write('\n'+','.join([str(0),nta,categories[i],','.join(model[0,nta_dict[nta],i,:])]))
+
+    for step in range(time-1):
+        effectives = compute_effectives(nta_dict,model,step)
+        for nta in ntas:
+            m = matrices(effectives,nta)
+            for i in range(len(categories)):
+                model[step+1,nta_dict[nta],i,:] = m[i].dot(model[step,nta_dict[nta],i,:].transpose()).transpose()
+                f.write('\n'+','.join([str(step+1),nta,categories[i],','.join(model[step+1,nta_dict[nta],i,:])]))
+
+    f.close()
+
+main(365)

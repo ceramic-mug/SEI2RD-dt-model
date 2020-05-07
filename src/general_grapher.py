@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import os
 import glob
+import math as m
 
 
 def graph(rootdir):
@@ -120,6 +121,23 @@ def graph(rootdir):
     di.savefig(outdir+'daily_cases.png')
     plt.close()
 
+    ##### LOG daily new infected
+
+    di = plt.figure(figsize=[7,4],dpi=300)
+
+    plt.bar(time,daily_new_infected,
+            label='Daily New Cases',
+            fc = '#B22222',
+            figure=di)
+
+    plt.xlabel('Time (days)')
+    plt.ylabel('New Cases')
+    plt.title('Log Daily New Cases (I)')
+    plt.yscale('log')
+
+    plt.legend()
+    di.savefig(outdir+'log_daily_cases.png')
+    plt.close()
     ##### daily new symptomatic
 
     ds = plt.figure(figsize=[7,4],dpi=300)

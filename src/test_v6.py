@@ -3,10 +3,10 @@ import general_grapher
 import os
 
 version = 6
-initial_metro_betas = [2.5]
-initial_nta_betas = [1]
-initial_borough_betas = [1]
-lockdown_factor = 0.25
+initial_nta_betas = [1.16]
+initial_borough_betas = [1.16]
+initial_metro_betas = [2.9]
+lockdown_factor = 0.2
 time = 100
 outdir = '../out/'
 

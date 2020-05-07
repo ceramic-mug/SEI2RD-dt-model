@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import re
 import random
-from datetime import date
+import datetime
 
 ##### Useful regular expressions
 
@@ -203,13 +203,9 @@ beta_metro = 0.5944
 beta_borough = 0.5944
 beta_nta = 0.5944
 mean_latent_period = 3
-proportion_symptomatic = 0.5
+proportion_symptomatic = 0.86834
 mean_infectious_period = 5
 proportion_severe_cases = 0.05
-
-nta_populations.head()
-borough_subways.head()
-
 
 def commuter_term(_nta_,_effective_dict_):
 
@@ -297,7 +293,7 @@ def main(time):
     model[0,starter_nta,0,3] += 1
     print('The starter NTA is '+ntas[starter_nta])
 
-    f = open("/Users/joshua/Documents/School/Princeton/Sophomore Classes/Spring 2020/CEE302/term_project/SEI2RD-dt-model/out/"+str(date.today())+'.csv',"w+")
+    f = open("/Users/joshua/Documents/School/Princeton/Sophomore Classes/Spring 2020/CEE302/term_project/SEI2RD-dt-model/out/"+datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")+'.csv',"w+")
     f.write(','.join(['step','nta','cat','s','e','is','ia','r','d']))
     for nta in ntas:
         for i in range(len(categories)):

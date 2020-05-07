@@ -1,0 +1,8 @@
+Model paramaters:
+beta (borough): 0.5944
+mean latent period: 3
+proportion symptomatic: 0.86834
+mean infectious period: 5
+proportion severe cases: 0.05
+beta (metro): 0.5
+initial beta (nta): 0.5944

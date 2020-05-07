@@ -4,8 +4,7 @@ import pandas as pd
 import os
 import glob
 
-
-rootdir = '../out/v2/'
+rootdir = '../out/v4/'
 
 subdirs = [f.path for f in os.scandir(rootdir) if f.is_dir()]
 
@@ -70,7 +69,7 @@ for subdir in subdirs:
     ##### total has been infected
     tot_infected = plt.figure(figsize=[7,4],dpi=300)
 
-    plt.plot(time[:200],total_has_been_infected[:200],
+    plt.plot(time,total_has_been_infected,
             label='Total Cases',
             linewidth = 2,
             color = '#B22222',
@@ -87,13 +86,13 @@ for subdir in subdirs:
     ##### total symptomatic,asymptomatic,dead
     tot_sad = plt.figure(figsize=[7,4],dpi=300)
 
-    plt.plot(time[:200],total_has_been_symptomatic[:200],
+    plt.plot(time,total_has_been_symptomatic,
             label='Total symptomatic cases',
             linewidth = 2,
             color = '#B22222',
             figure=tot_sad)
 
-    plt.plot(time[:200],total_has_been_asymptomatic[:200],
+    plt.plot(time,total_has_been_asymptomatic,
             label='Total asymptomatic cases',
             linewidth = 2,
             color = '#4682B4',
@@ -111,7 +110,7 @@ for subdir in subdirs:
 
     di = plt.figure(figsize=[7,4],dpi=300)
 
-    plt.bar(time[:200],daily_new_infected[:200],
+    plt.bar(time,daily_new_infected,
             label='Daily New Cases',
             fc = '#B22222',
             figure=di)
@@ -128,7 +127,7 @@ for subdir in subdirs:
 
     ds = plt.figure(figsize=[7,4],dpi=300)
 
-    plt.bar(time[:200],daily_new_symptomatic[:200],
+    plt.bar(time,daily_new_symptomatic,
             label='Daily New Symptomatic',
             fc = '#800000',
             figure=ds)

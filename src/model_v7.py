@@ -98,7 +98,7 @@ nta_distances_to_subway['distance(m)'] = [ft_to_m(i) for i in nta_distances_to_s
 # function for subway ridership per population (_dist_ in meters, _borough_ string)
 def subway_prop_population(_dist_,_borough_):
 
-    a =  inter_borough_commuter_proportions[_borough_] * prop_commute * (-0.0004 * _dist_ + 1) # up from 0.53 at d=0 from Gutierrez et al, 2011
+    a =  inter_borough_commuter_proportions[_borough_] * prop_commute * (-0.00006 * _dist_ + 1) # up from 0.53 at d=0 from Gutierrez et al, 2011
 
     # can't have a negative proportion
     if a <= 0:

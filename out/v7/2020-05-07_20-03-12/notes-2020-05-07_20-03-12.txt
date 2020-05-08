@@ -1,0 +1,13 @@
+Model paramaters:
+Starter NTA 0 is QN29
+Starter NTA 1 is QN71
+Starter NTA 2 is BK60
+Starter NTA 3 is BX39
+mean latent period: 3
+proportion symptomatic: 0.86834
+mean infectious period: 5
+proportion severe cases: 0.05
+initial beta metro: 2.9
+initial beta nta: 1.16
+initial beta borough: 1.16
+Lockdown factor: 0.2

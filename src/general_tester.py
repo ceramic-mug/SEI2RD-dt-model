@@ -1,13 +1,13 @@
-import model_v6
+import model_v7
 import general_grapher
 import os
 
-version = 6
+version = 7
 initial_nta_betas = [1.16]
 initial_borough_betas = [1.16]
-initial_metro_betas = [2.9]
+initial_metro_betas = [0.5*2.9,1.5*2.9]
 lockdown_factor = 0.2
-time = 100
+time = 365
 outdir = '../out/'
 
 for metro_b in initial_metro_betas:
@@ -18,7 +18,7 @@ for metro_b in initial_metro_betas:
             print('nta: '+str(nta_b))
             print('borough: '+str(borough_b))
 
-            f = model_v6.main(time,metro_b,nta_b,borough_b,lockdown_factor)
+            f = model_v7.main(time,metro_b,nta_b,borough_b,lockdown_factor)
 
             newdir = outdir + 'v'+str(version)+'/' + f
             os.makedirs(newdir)
